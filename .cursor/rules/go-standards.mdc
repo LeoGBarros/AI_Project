@@ -1,0 +1,190 @@
+---
+description: Padrões de codificação Go para este projeto — arquitetura hexagonal, libs, error handling, DI, testes e concorrência.
+globs: **/*.go
+alwaysApply: false
+---
+
+# Padrões de Codificação Go
+
+Referência completa: [`TECHNICAL_BASE.md` — seção 9](../../TECHNICAL_BASE.md#9-padrões-de-codificação-go)
+
+## Estrutura de Diretórios (Hexagonal)
+
+Todo microsserviço segue esta estrutura. Nunca misture responsabilidades entre camadas:
+
+```
+service-name/
+├── cmd/server/main.go              # Único ponto de wiring de DI
+├── internal/
+│   ├── domain/
+│   │   ├── entity.go               # Entidades e agregados
+│   │   ├── value_object.go         # Value objects imutáveis
+│   │   └── errors.go               # Erros de domínio tipados
+│   ├── application/
+│   │   └── usecase.go              # Use cases com interfaces injetadas
+│   ├── ports/
+│   │   ├── input/handler.go        # Interface do handler HTTP
+│   │   └── output/
+│   │       ├── repository.go       # Interface de repositório
+│   │       └── publisher.go        # Interface de publicação de eventos
+│   └── adapters/
+│       ├── http/handler.go         # Implementação HTTP (chi router)
+│       ├── postgres/repository.go  # Implementação PostgreSQL
+│       ├── mongo/repository.go     # Implementação MongoDB
+│       └── redis/
+│           ├── cache.go
+│           └── publisher.go
+├── pkg/
+│   ├── middleware/                 # Middlewares reutilizáveis
+│   └── apierror/                   # Tipos de erro HTTP padronizados
+├── config/config.go
+├── migrations/*.sql
+├── api/openapi.yaml
+├── Dockerfile
+└── go.mod
+```
+
+## Regra de Dependência entre Camadas
+
+```
+domain  ←  application  ←  adapters  ←  cmd/main.go
+```
+
+- `domain`: zero imports externos ao pacote
+- `application`: importa apenas `domain` e `ports/output`
+- `adapters`: implementam as interfaces de `ports`
+- `cmd/main.go`: único lugar onde dependências concretas são instanciadas e conectadas
+
+## Bibliotecas Recomendadas
+
+| Propósito | Biblioteca |
+|---|---|
+| HTTP server | `net/http` + `github.com/go-chi/chi/v5` |
+| Validação | `github.com/go-playground/validator/v10` |
+| PostgreSQL | `github.com/jackc/pgx/v5` |
+| MongoDB | `go.mongodb.org/mongo-driver/v2` |
+| Redis | `github.com/redis/go-redis/v9` |
+| JWT | `github.com/golang-jwt/jwt/v5` |
+| Configuração | `github.com/spf13/viper` |
+| Logging | `go.uber.org/zap` |
+| OpenTelemetry | `go.opentelemetry.io/otel` |
+| Migrações | `github.com/golang-migrate/migrate/v4` |
+| Testes | `github.com/stretchr/testify` |
+
+Não adicione libs fora desta lista sem justificativa documentada.
+
+## Error Handling
+
+- Nunca ignore erros com `_`
+- Erros de domínio devem ser tipos verificáveis via `errors.Is` / `errors.As`
+- Encapsule erros com contexto: `fmt.Errorf("operacao: %w", err)`
+- Na camada HTTP, mapeie erros de domínio para HTTP status codes
+
+```go
+// internal/domain/errors.go
+var (
+    ErrUserNotFound    = errors.New("user not found")
+    ErrEmailDuplicated = errors.New("email already in use")
+)
+
+// internal/adapters/http/handler.go
+switch {
+case errors.Is(err, domain.ErrUserNotFound):
+    apierror.WriteNotFound(w, err)
+case errors.Is(err, domain.ErrEmailDuplicated):
+    apierror.WriteConflict(w, err)
+default:
+    apierror.WriteInternal(w, err)
+}
+```
+
+## Injeção de Dependência
+
+- DI manual, sem frameworks
+- `main.go` é o único lugar onde implementações concretas são instanciadas
+- Dependências sempre via construtor, nunca variáveis globais
+
+```go
+// cmd/server/main.go
+repo := postgres.NewUserRepository(pool, logger)
+publisher := redis.NewEventPublisher(redisClient, logger)
+uc := application.NewCreateUserUseCase(repo, publisher, logger)
+handler := httpAdapter.NewUserHandler(uc, logger)
+```
+
+```go
+// internal/application/usecase.go
+func NewCreateUserUseCase(
+    repo ports.UserRepository,
+    publisher ports.EventPublisher,
+    logger *zap.Logger,
+) *CreateUserUseCase {
+    return &CreateUserUseCase{repo: repo, publisher: publisher, logger: logger}
+}
+```
+
+## context.Context
+
+- Sempre o primeiro parâmetro em funções que fazem I/O
+- Nunca armazene context em structs
+- Respeite cancelamento em toda operação de longa duração
+
+```go
+func (r *UserRepository) FindByID(ctx context.Context, id uuid.UUID) (*domain.User, error) { ... }
+```
+
+## Configuração
+
+- Toda configuração via variáveis de ambiente com prefixo do serviço
+- Validar obrigatórias no startup; falhar imediatamente se ausentes
+
+```go
+// Nomenclatura: {SERVICO}_{COMPONENTE}_{CAMPO}
+USER_SERVICE_DB_URL=postgres://...
+USER_SERVICE_REDIS_ADDR=redis:6379
+USER_SERVICE_LOG_LEVEL=info
+```
+
+## Nomeação e Estilo
+
+- Pacotes em `lowercase` sem underscore: `userservice`, não `user_service`
+- Interfaces definidas onde são **usadas**, não onde são implementadas
+- Linhas com no máximo 120 caracteres
+- Comentários de exportação obrigatórios em funções e tipos públicos
+- Executar `gofmt` e `goimports` (CI aplica automaticamente)
+
+## Testes
+
+- Cobertura mínima: 80% das funções de `domain` e `application`
+- Testes unitários não têm dependências externas (use mocks para ports)
+- Integração com banco real via `testcontainers-go`
+- Formato de nome: `Test<FuncName>_<Scenario>_<ExpectedResult>`
+
+```go
+func TestCreateUser_WithValidData_ShouldSucceed(t *testing.T) { ... }
+func TestCreateUser_WithDuplicateEmail_ShouldReturnConflict(t *testing.T) { ... }
+```
+
+- Prefira table-driven tests para múltiplos cenários
+
+## Concorrência
+
+- Prefira canais a mutexes quando possível
+- Todo goroutine deve ter mecanismo de shutdown (context cancelation ou WaitGroup)
+- Nunca lance goroutines sem tratamento de panic
+
+## Dockerfile Padrão
+
+```dockerfile
+FROM golang:1.22-alpine AS builder
+WORKDIR /app
+COPY go.mod go.sum ./
+RUN go mod download
+COPY . .
+RUN CGO_ENABLED=0 GOOS=linux go build -o /bin/service ./cmd/server
+
+FROM gcr.io/distroless/static-debian12
+COPY --from=builder /bin/service /service
+EXPOSE 8080
+ENTRYPOINT ["/service"]
+```

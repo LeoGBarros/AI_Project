@@ -1,0 +1,74 @@
+---
+description: Regra base do projeto — referência técnica central e mapa de diagramas. Aplicada em toda sessão de desenvolvimento.
+alwaysApply: true
+---
+
+# Base do Projeto
+
+## Fonte da Verdade
+
+O arquivo [`TECHNICAL_BASE.md`](../../TECHNICAL_BASE.md) é a única fonte de verdade técnica deste projeto. Antes de implementar qualquer código, leia as seções relevantes deste documento. Qualquer desvio dos padrões definidos deve ser explicitamente justificado.
+
+## Princípios Inegociáveis
+
+| Princípio | Implicação prática |
+|---|---|
+| **Separação de responsabilidades** | Cada serviço tem domínio único; não acesse internals de outros serviços |
+| **Design para falha** | Sempre implemente circuit breaker, retry com backoff e timeout em chamadas externas |
+| **Observabilidade desde o início** | Logs JSON estruturados, spans OpenTelemetry e métricas são obrigatórios, não opcionais |
+| **Segurança por padrão** | Todo endpoint protegido com JWT; nunca expor stack traces em produção |
+| **API-first** | O contrato `api/openapi.yaml` é definido antes da implementação |
+| **Imutabilidade de infra** | Toda mudança de schema via migration versionada; nunca alterar migrations já aplicadas |
+
+## Mapa de Diagramas
+
+Referencie os diagramas abaixo ao implementar as funcionalidades correspondentes. Leia o arquivo antes de começar a implementação da área relacionada.
+
+| Diagrama | Quando usar |
+|---|---|
+| [`docs/diagrams/architecture-overview.md`](../../docs/diagrams/architecture-overview.md) | Ao entender a topologia do sistema, camadas e regra de dependência hexagonal |
+| [`docs/diagrams/auth-login-flow.md`](../../docs/diagrams/auth-login-flow.md) | Ao implementar login de usuário ou validação de JWT em endpoints |
+| [`docs/diagrams/auth-token-refresh.md`](../../docs/diagrams/auth-token-refresh.md) | Ao implementar renovação de access token via refresh token |
+| [`docs/diagrams/auth-service-to-service.md`](../../docs/diagrams/auth-service-to-service.md) | Ao implementar chamadas autenticadas entre microsserviços (Client Credentials) |
+| [`docs/diagrams/pubsub-event-flow.md`](../../docs/diagrams/pubsub-event-flow.md) | Ao implementar publicação ou consumo de eventos Redis Pub/Sub |
+| [`docs/diagrams/circuit-breaker-states.md`](../../docs/diagrams/circuit-breaker-states.md) | Ao implementar resiliência em chamadas a serviços externos ou bancos de dados |
+
+## Stack e Tecnologias
+
+| Camada | Tecnologia |
+|---|---|
+| API Gateway | Kong 3.x |
+| IAM / Identidade | Keycloak 24.x |
+| Linguagem | Go 1.22+ |
+| Banco relacional | PostgreSQL 16.x |
+| Banco de documentos | MongoDB 7.x |
+| Cache / Fila | Redis 7.x |
+| Observabilidade | OpenTelemetry (SDK Go 1.x) |
+| Containerização | Docker 24.x |
+| Orquestração | Kubernetes 1.29+ |
+
+## Arquitetura de Cada Serviço
+
+Todo microsserviço segue **Arquitetura Hexagonal (Ports & Adapters)** organizada em camadas DDD:
+
+```
+internal/
+├── domain/          # Entidades, Value Objects, regras de negócio. SEM dependências externas.
+├── application/     # Use cases. Importa apenas domain e ports/output.
+├── ports/
+│   ├── input/       # Interfaces de entrada (HTTP handlers, consumers)
+│   └── output/      # Interfaces de saída (repositórios, publishers)
+└── adapters/        # Implementações concretas (PostgreSQL, Redis, HTTP client)
+```
+
+**Regra de dependência:** `domain` ← `application` ← `adapters`. O `domain` nunca importa nada externo.
+
+## Skills Disponíveis
+
+Para tarefas recorrentes de desenvolvimento, utilize as skills em `.cursor/skills/`:
+
+| Skill | Quando usar |
+|---|---|
+| `create-microservice` | Scaffoldar um novo microsserviço do zero |
+| `implement-usecase` | Adicionar um novo use case em um serviço existente |
+| `implement-event` | Implementar publicação ou consumo de evento Redis Pub/Sub |

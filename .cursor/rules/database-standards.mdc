@@ -1,0 +1,147 @@
+---
+description: Padrões de banco de dados — nomenclatura e colunas obrigatórias para PostgreSQL, MongoDB e Redis, migrations e connection pool.
+globs: "**/*.sql,**/migrations/**,**/repository.go,**/cache.go"
+alwaysApply: false
+---
+
+# Padrões de Banco de Dados
+
+Referência completa: [`TECHNICAL_BASE.md` — seção 7](../../TECHNICAL_BASE.md#7-padrões-de-banco-de-dados)
+
+---
+
+## PostgreSQL
+
+### Nomenclatura
+
+| Objeto | Convenção | Exemplo |
+|---|---|---|
+| Tabela | `snake_case` plural | `user_accounts` |
+| Coluna | `snake_case` | `created_at` |
+| Índice | `idx_<tabela>_<colunas>` | `idx_users_email` |
+| Chave estrangeira | `fk_<tabela>_<coluna>` | `fk_orders_user_id` |
+| Constraint única | `uq_<tabela>_<colunas>` | `uq_users_email` |
+
+### Colunas Obrigatórias em Toda Tabela
+
+```sql
+id          UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+updated_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+deleted_at  TIMESTAMPTZ             -- soft delete (NULL = não deletado)
+```
+
+- Nunca deletar registros fisicamente sem justificativa explícita — prefira soft delete via `deleted_at`
+- Sempre filtrar `WHERE deleted_at IS NULL` em queries de listagem e busca
+
+### Migrations
+
+- Toda alteração de schema via migration versionada com `golang-migrate`
+- Nomenclatura: `{versao}_{descricao}.up.sql` / `{versao}_{descricao}.down.sql`
+- Exemplo: `000001_create_users_table.up.sql`
+- Migrations nunca são editadas após aplicadas em produção
+- Executar no startup do serviço ou via job dedicado em CI/CD
+
+### Transações
+
+- Usar transações para operações que modificam múltiplas tabelas
+- Timeout máximo por transação: 30 segundos
+- Nunca fazer chamadas a serviços externos dentro de uma transação
+
+### Connection Pool (pgx)
+
+```go
+pool, _ := pgxpool.New(ctx, connString)
+pool.Config().MaxConns = 20
+pool.Config().MinConns = 5
+pool.Config().MaxConnLifetime = 30 * time.Minute
+pool.Config().MaxConnIdleTime = 5 * time.Minute
+```
+
+### Segurança em Queries
+
+- Sempre usar prepared statements ou drivers tipados (pgx já faz isso nativamente)
+- Nunca concatenar input do usuário em queries SQL
+- Injeção SQL é item do OWASP Top 10 — tolerância zero
+
+---
+
+## MongoDB
+
+### Quando Usar
+
+- Documentos com estrutura variável ou nested complexa
+- Dados de log, eventos, configurações dinâmicas
+- Workloads com alto volume de leitura/escrita de documentos inteiros
+
+### Nomenclatura
+
+| Objeto | Convenção | Exemplo |
+|---|---|---|
+| Database | `snake_case` | `notification_service` |
+| Collection | `snake_case` plural | `notification_logs` |
+| Campo | `snake_case` | `sent_at` |
+
+### Campos Obrigatórios em Todo Documento
+
+```json
+{
+  "_id": "ObjectId ou UUID",
+  "created_at": "ISODate",
+  "updated_at": "ISODate"
+}
+```
+
+### Índices
+
+- Criar índices para todos os campos usados em queries de filtro
+- Usar índices compostos quando a query filtra por múltiplos campos
+- Criar índice TTL para coleções de dados temporários (sessões, logs)
+
+---
+
+## Redis
+
+### Namespacing de Chaves (Obrigatório)
+
+Formato: `{servico}:{entidade}:{id}:{campo_opcional}`
+
+```
+user-service:user:uuid-123:profile
+auth-service:session:uuid-456
+order-service:order:uuid-789:status
+```
+
+Nunca criar chaves sem namespace — colisões entre serviços são críticas.
+
+### TTL (Obrigatório)
+
+Toda chave de cache deve ter TTL definido explicitamente. Nunca criar chaves sem expiração em produção.
+
+| Tipo de dado | TTL recomendado |
+|---|---|
+| Cache de objeto de domínio | 5–15 minutos |
+| Cache de lista/query | 1–5 minutos |
+| Sessão de usuário | Igual ao tempo de vida do JWT |
+| Rate limiting counter | Janela do rate limit (ex: 60s) |
+| Token de service account | Até 80% do TTL do token (ex: 4min para token de 5min) |
+
+### Pub/Sub — Canais
+
+- Formato: `{servico}.{evento}` (ex: `user-service.user.created`)
+- Envelope obrigatório de mensagem: ver [`docs/diagrams/pubsub-event-flow.md`](../../docs/diagrams/pubsub-event-flow.md)
+
+```json
+{
+  "event_id": "uuid-v4",
+  "event_type": "user.created",
+  "source_service": "user-service",
+  "timestamp": "2026-03-05T12:00:00Z",
+  "correlation_id": "uuid-v4",
+  "version": "1",
+  "payload": {}
+}
+```
+
+- Consumidores devem ser **idempotentes**: processar o mesmo `event_id` múltiplas vezes deve produzir o mesmo resultado
+- Registrar `event_id` processado para deduplicação (ex: chave Redis com TTL ou coluna na tabela)
