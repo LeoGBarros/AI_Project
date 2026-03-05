@@ -19,14 +19,14 @@ sequenceDiagram
         participant Keycloak as Keycloak
     end
 
-    Usuario->>+Keycloak: POST /realms/{realm}/protocol/openid-connect/token
+    Usuario->>Keycloak: POST /realms/{realm}/protocol/openid-connect/token
     Note right of Keycloak: grant_type=password<br/>client_id, username, password
     Keycloak->>Keycloak: Valida credenciais e verifica realm
 
     alt Credenciais inválidas
-        Keycloak-->>-Usuario: 401 Unauthorized { error: invalid_grant }
+        Keycloak-->>Usuario: 401 Unauthorized { error: invalid_grant }
     else Credenciais válidas
-        Keycloak-->>-Usuario: 200 OK
+        Keycloak-->>Usuario: 200 OK
         Note left of Keycloak: access_token (JWT, curta duração)<br/>refresh_token (longa duração)<br/>expires_in (segundos)
     end
 ```
