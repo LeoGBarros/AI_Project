@@ -41,9 +41,9 @@ sequenceDiagram
     Note right of Keycloak: grant_type=client_credentials<br/>client_id=svc-a<br/>client_secret=***
 
     alt Client inválido ou secret incorreto
-        Keycloak-->>-SvcA: 401 Unauthorized { error: unauthorized_client }
+        Keycloak-->>SvcA: 401 Unauthorized { error: unauthorized_client }
     else Autenticado com sucesso
-        Keycloak-->>-SvcA: 200 OK
+        Keycloak-->>SvcA: 200 OK
         Note left of Keycloak: access_token (JWT)<br/>expires_in: 300s<br/>token_type: Bearer
         SvcA->>SvcA: Armazena token em cache local (TTL = expires_in - 30s)
     end
@@ -59,8 +59,8 @@ sequenceDiagram
         Kong-->>SvcA: 403 Forbidden
     else Autorizado
         SvcB->>SvcB: Processa requisição
-        SvcB-->>-Kong: 200 OK { data }
-        Kong-->>-SvcA: 200 OK { data }
+        SvcB-->>Kong: 200 OK { data }
+        Kong-->>SvcA: 200 OK { data }
         Note over SvcA: Token reutilizado nos próximos<br/>requests até cache expirar.
     end
 ```

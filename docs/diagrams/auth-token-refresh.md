@@ -35,18 +35,18 @@ sequenceDiagram
 
     alt Refresh token válido e não expirado
         Keycloak->>Keycloak: Invalida refresh_token anterior (rotação)
-        Keycloak-->>-Usuario: 200 OK
+        Keycloak-->>Usuario: 200 OK
         Note left of Keycloak: novo access_token<br/>novo refresh_token<br/>expires_in
 
-        Usuario->>+Kong: Repete request original com novo access_token
+        Usuario->>Kong: Repete request original com novo access_token
         Kong-->>-Usuario: 200 OK { data }
 
     else Refresh token expirado ou inválido
-        Keycloak-->>-Usuario: 400 Bad Request { error: invalid_grant }
+        Keycloak-->>Usuario: 400 Bad Request { error: invalid_grant }
         Note over Usuario: Sessão encerrada.<br/>Usuário deve fazer login novamente.
 
-        Usuario->>+Keycloak: POST /token (grant_type=password)
-        Keycloak-->>-Usuario: 200 OK (novos tokens)
+        Usuario->>Keycloak: POST /token (grant_type=password)
+        Keycloak-->>Usuario: 200 OK (novos tokens)
     end
 ```
 

@@ -114,16 +114,16 @@ sequenceDiagram
 
     Note over CB: Estado: HALF-OPEN<br/>Timeout expirado. Permitindo requisição de teste.
 
-    SvcA->>+CB: Solicita chamada a Serviço B
-    CB->>+SvcB: Permite UMA requisição de teste
+    SvcA->>CB: Solicita chamada a Serviço B
+    CB->>SvcB: Permite UMA requisição de teste
 
     alt Teste bem-sucedido
-        SvcB-->>-CB: 200 OK
-        CB-->>-SvcA: 200 OK
+        SvcB-->>CB: 200 OK
+        CB-->>SvcA: 200 OK
         Note over CB: Transição para CLOSED.<br/>Operação normal retomada.
     else Teste falhou
-        SvcB-->>-CB: Erro / timeout
-        CB-->>-SvcA: Falha
+        SvcB-->>CB: Erro / timeout
+        CB-->>SvcA: Falha
         Note over CB: Transição para OPEN.<br/>Reinicia timeout de espera.
     end
 ```

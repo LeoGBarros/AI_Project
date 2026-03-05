@@ -54,11 +54,11 @@ sequenceDiagram
         participant Servico as Microsserviço
     end
 
-    Usuario->>+Kong: GET /v1/resource (Authorization: Bearer JWT)
+    Usuario->>Kong: GET /v1/resource (Authorization: Bearer JWT)
 
     Kong->>+Keycloak: GET /realms/{realm}/protocol/openid-connect/certs
     Note right of Kong: Busca JWKS (chave pública).<br/>Resultado em cache por TTL configurado.
-    Keycloak-->>-Kong: 200 OK { keys: [...] }
+    Keycloak-->>Kong: 200 OK { keys: [...] }
     Kong->>Kong: Valida assinatura, exp, iss, aud
 
     alt Token ausente
@@ -66,7 +66,7 @@ sequenceDiagram
     else Token inválido ou expirado
         Kong-->>Usuario: 401 Unauthorized { message: invalid or expired token }
     else Token válido
-        Kong->>+Servico: Forward request
+        Kong->>Servico: Forward request
         Note right of Kong: Adiciona headers:<br/>X-Consumer-ID<br/>X-Consumer-Username<br/>X-Correlation-ID
 
         Servico->>Servico: Extrai e verifica roles/scopes do JWT
@@ -76,8 +76,8 @@ sequenceDiagram
             Kong-->>Usuario: 403 Forbidden { error: insufficient_permissions }
         else Autorizado
             Servico->>Servico: Processa a requisição
-            Servico-->>-Kong: 200 OK { data }
-            Kong-->>-Usuario: 200 OK { data }
+            Servico-->>Kong: 200 OK { data }
+            Kong-->>Usuario: 200 OK { data }
         end
     end
 ```
