@@ -56,7 +56,7 @@ sequenceDiagram
 
     Usuario->>Kong: GET /v1/resource (Authorization: Bearer JWT)
 
-    Kong->>+Keycloak: GET /realms/{realm}/protocol/openid-connect/certs
+    Kong->>Keycloak: GET /realms/{realm}/protocol/openid-connect/certs
     Note right of Kong: Busca JWKS (chave pública).<br/>Resultado em cache por TTL configurado.
     Keycloak-->>Kong: 200 OK { keys: [...] }
     Kong->>Kong: Valida assinatura, exp, iss, aud
