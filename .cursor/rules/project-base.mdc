@@ -72,3 +72,4 @@ Para tarefas recorrentes de desenvolvimento, utilize as skills em `.cursor/skill
 | `create-microservice` | Scaffoldar um novo microsserviço do zero |
 | `implement-usecase` | Adicionar um novo use case em um serviço existente |
 | `implement-event` | Implementar publicação ou consumo de evento Redis Pub/Sub |
+| `create-skill` | Criar uma nova skill seguindo os padrões do projeto |
