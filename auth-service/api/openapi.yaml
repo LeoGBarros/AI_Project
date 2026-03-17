@@ -1,0 +1,382 @@
+openapi: "3.0.3"
+info:
+  title: auth-service API
+  description: |
+    Authentication service that integrates with Keycloak.
+    Supports two OAuth 2.0 flows:
+    - **ROPC** (Resource Owner Password Credentials): for mobile and desktop app clients.
+    - **Authorization Code + PKCE**: for web browser clients.
+  version: "1.0.0"
+  contact:
+    name: Platform Team
+
+servers:
+  - url: /v1/auth
+    description: Auth service base path (routed via Kong)
+
+tags:
+  - name: Authentication
+    description: Login, token refresh, and logout operations
+  - name: PKCE
+    description: Authorization Code + PKCE flow for web clients
+  - name: Health
+    description: Liveness and readiness probes
+
+paths:
+  /login:
+    post:
+      summary: Login (ROPC)
+      description: |
+        Authenticates a user using the Resource Owner Password Credentials (ROPC) grant.
+        Only supported for `client_type: mobile` or `client_type: app`.
+        Web clients must use the PKCE flow via `/authorize`.
+      operationId: login
+      tags: [Authentication]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginRequest"
+            examples:
+              mobile:
+                summary: Mobile client login
+                value:
+                  username: "user@example.com"
+                  password: "s3cr3t!"
+                  client_type: "mobile"
+              app:
+                summary: Desktop app login
+                value:
+                  username: "user@example.com"
+                  password: "s3cr3t!"
+                  client_type: "app"
+      responses:
+        "200":
+          description: Login successful — token pair returned
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TokenPair"
+              example:
+                access_token: "eyJhbGci..."
+                refresh_token: "eyJhbGci..."
+                token_type: "Bearer"
+                expires_in: 300
+                refresh_expires_in: 1800
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
+
+  /authorize:
+    get:
+      summary: Initiate PKCE Authorization (web)
+      description: |
+        Starts the Authorization Code + PKCE flow for web clients.
+        The service generates a `code_verifier`, derives the `code_challenge` (S256),
+        stores the state in Redis, and redirects the browser to the Keycloak authorization page.
+      operationId: authorize
+      tags: [PKCE]
+      parameters:
+        - name: client_id
+          in: query
+          required: true
+          description: Keycloak client_id for the web application.
+          schema:
+            type: string
+          example: "my-web-app"
+        - name: redirect_uri
+          in: query
+          required: true
+          description: URI to redirect to after the Keycloak callback has been processed.
+          schema:
+            type: string
+            format: uri
+          example: "https://app.example.com/auth/callback"
+      responses:
+        "302":
+          description: Redirect to Keycloak authorization page
+          headers:
+            Location:
+              description: Keycloak authorization URL with PKCE parameters
+              schema:
+                type: string
+        "400":
+          $ref: "#/components/responses/BadRequest"
+
+  /callback:
+    get:
+      summary: PKCE Callback (web)
+      description: |
+        Processes the Keycloak redirect after a successful PKCE authorization.
+        Validates the `state` parameter, exchanges the authorization `code` for tokens,
+        and returns the token pair as JSON.
+      operationId: callback
+      tags: [PKCE]
+      parameters:
+        - name: code
+          in: query
+          required: true
+          description: Authorization code issued by Keycloak.
+          schema:
+            type: string
+        - name: state
+          in: query
+          required: true
+          description: Opaque state value for CSRF protection — must match what was stored.
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Code exchanged successfully — token pair returned
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TokenPair"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
+
+  /refresh:
+    post:
+      summary: Refresh Access Token
+      description: |
+        Exchanges a valid `refresh_token` for a new token pair.
+        Keycloak rotates the refresh token on each use — the previous one is invalidated.
+      operationId: refreshToken
+      tags: [Authentication]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RefreshRequest"
+            example:
+              refresh_token: "eyJhbGci..."
+              client_type: "mobile"
+      responses:
+        "200":
+          description: Token renewed successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TokenPair"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
+
+  /logout:
+    post:
+      summary: Logout
+      description: |
+        Revokes the user's `refresh_token` in Keycloak, effectively ending the session.
+        The client is responsible for discarding the local `access_token`.
+      operationId: logout
+      tags: [Authentication]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LogoutRequest"
+            example:
+              refresh_token: "eyJhbGci..."
+              client_type: "web"
+      responses:
+        "204":
+          description: Logout successful — no content
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
+
+  /healthz/live:
+    get:
+      summary: Liveness probe
+      description: Returns 200 if the process is alive. Not routed through Kong.
+      operationId: liveness
+      tags: [Health]
+      responses:
+        "200":
+          description: Service is alive
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthResponse"
+              example:
+                status: "ok"
+
+  /healthz/ready:
+    get:
+      summary: Readiness probe
+      description: Returns 200 if the service is ready to receive traffic (Redis reachable). Not routed through Kong.
+      operationId: readiness
+      tags: [Health]
+      responses:
+        "200":
+          description: Service is ready
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthResponse"
+        "503":
+          description: Service is not ready (dependency unavailable)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthResponse"
+              example:
+                status: "degraded"
+                reason: "redis unavailable"
+
+components:
+  schemas:
+    LoginRequest:
+      type: object
+      required: [username, password, client_type]
+      properties:
+        username:
+          type: string
+          description: Keycloak username or email address.
+          example: "user@example.com"
+        password:
+          type: string
+          format: password
+          description: User password (never logged or stored).
+          example: "s3cr3t!"
+        client_type:
+          $ref: "#/components/schemas/ClientType"
+
+    RefreshRequest:
+      type: object
+      required: [refresh_token, client_type]
+      properties:
+        refresh_token:
+          type: string
+          description: The refresh token previously issued by Keycloak.
+        client_type:
+          $ref: "#/components/schemas/ClientType"
+
+    LogoutRequest:
+      type: object
+      required: [refresh_token]
+      properties:
+        refresh_token:
+          type: string
+          description: The refresh token to revoke.
+        client_type:
+          $ref: "#/components/schemas/ClientType"
+
+    TokenPair:
+      type: object
+      properties:
+        access_token:
+          type: string
+          description: Short-lived JWT access token (use in Authorization header).
+        refresh_token:
+          type: string
+          description: Long-lived token used to obtain new access tokens.
+        token_type:
+          type: string
+          example: "Bearer"
+        expires_in:
+          type: integer
+          description: Access token lifetime in seconds.
+          example: 300
+        refresh_expires_in:
+          type: integer
+          description: Refresh token lifetime in seconds.
+          example: 1800
+
+    ClientType:
+      type: string
+      enum: [web, mobile, app]
+      description: |
+        Identifies the type of client initiating the request.
+        - `web`: browser-based app (uses PKCE flow)
+        - `mobile`: iOS/Android app (uses ROPC)
+        - `app`: desktop or CLI application (uses ROPC)
+
+    HealthResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          example: "ok"
+        reason:
+          type: string
+          example: "redis unavailable"
+
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: object
+          properties:
+            code:
+              type: string
+              example: "INVALID_CREDENTIALS"
+            message:
+              type: string
+              example: "invalid username or password"
+            details:
+              type: array
+              items:
+                type: object
+                properties:
+                  field:
+                    type: string
+                  message:
+                    type: string
+            trace_id:
+              type: string
+              example: "4bf92f3577b34da6a3ce929d0e0e4736"
+
+  responses:
+    BadRequest:
+      description: Request validation failed
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          example:
+            error:
+              code: "VALIDATION_ERROR"
+              message: "one or more fields are invalid"
+              details:
+                - field: "username"
+                  message: "required"
+              trace_id: "4bf92f3577b34da6a3ce929d0e0e4736"
+
+    Unauthorized:
+      description: Authentication failed
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          example:
+            error:
+              code: "INVALID_CREDENTIALS"
+              message: "invalid username or password"
+              trace_id: "4bf92f3577b34da6a3ce929d0e0e4736"
+
+    ServiceUnavailable:
+      description: Keycloak is temporarily unavailable (circuit breaker open)
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          example:
+            error:
+              code: "SERVICE_UNAVAILABLE"
+              message: "authentication service is temporarily unavailable"
+              trace_id: "4bf92f3577b34da6a3ce929d0e0e4736"
