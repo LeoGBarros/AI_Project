@@ -9,7 +9,7 @@ description: Implementar publicação ou consumo de eventos via Redis Pub/Sub, s
 
 Leia os seguintes documentos:
 - [`docs/diagrams/pubsub-event-flow.md`](../../../docs/diagrams/pubsub-event-flow.md) — fluxo completo com idempotência
-- [`TECHNICAL_BASE.md` — seção 3.3](../../../TECHNICAL_BASE.md#33-comunicação-entre-serviços) — padrões de mensageria
+- [`TECHNICAL_BASE.md` — seção 3.4](../../../TECHNICAL_BASE.md#34-comunicação-entre-serviços) — padrões de mensageria
 - [`TECHNICAL_BASE.md` — seção 7.3](../../../TECHNICAL_BASE.md#73-redis) — namespacing e canal Pub/Sub
 
 ## Informações Necessárias

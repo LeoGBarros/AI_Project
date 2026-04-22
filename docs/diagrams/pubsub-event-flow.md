@@ -1,6 +1,6 @@
 # Fluxo de Eventos Pub/Sub (Redis)
 
-> Contexto: [Seção 3.3 — Comunicação Assíncrona](../../TECHNICAL_BASE.md#33-comunicação-entre-serviços)
+> Contexto: [Seção 3.4 — Comunicação entre Serviços](../../TECHNICAL_BASE.md#34-comunicação-entre-serviços)
 
 ---
 
@@ -9,11 +9,40 @@
 Comunicação assíncrona entre serviços usa **Redis Pub/Sub**. O Publisher publica um evento em um canal nomeado. Todos os Subscribers inscritos naquele canal recebem o evento de forma independente.
 
 Regras obrigatórias:
-- Todo evento deve seguir o **envelope padrão** (ver `TECHNICAL_BASE.md` seção 3.3)
+- Todo evento deve seguir o **envelope padrão** (ver `TECHNICAL_BASE.md` seção 3.4)
 - Consumidores devem ser **idempotentes**: o mesmo `event_id` processado mais de uma vez deve produzir o mesmo resultado
 - O canal segue o padrão: `{servico}.{entidade}.{acao}` (ex: `user-service.user.created`)
 
 ---
+
+## Diagrama ASCII — Fluxo Pub/Sub
+
+```text
+┌─────────────┐         ┌──────────────────┐         ┌─────────────┐
+│  Serviço A  │         │  Redis Pub/Sub   │         │  Serviço B  │
+│ (Publisher) │         │                  │         │(Subscriber) │
+└──────┬──────┘         │  Canal:          │         └──────▲──────┘
+       │                │  user-service.   │                │
+       │  PUBLISH       │  user.created    │   Mensagem     │
+       │  ─────────────►│                  │───────────────►│
+       │                │  ┌────────────┐  │                │
+       │   Envelope:    │  │  Entrega   │  │         ┌──────▲──────┐
+       │   {event_id,   │  │ simultânea │  │         │  Serviço C  │
+       │    event_type,  │  │  a todos   │  │         │(Subscriber) │
+       │    source,      │  │subscribers │  │         └─────────────┘
+       │    timestamp,   │  └────────────┘  │                │
+       │    correlation, │                  │   Mensagem     │
+       │    payload}     │                  │───────────────►│
+       │                └──────────────────┘                │
+       │                                                    │
+       │                                                    │
+       │            Cada subscriber verifica:               │
+       │            ┌──────────────────────────┐            │
+       │            │ event_id já processado?  │            │
+       │            │  SIM → descarta (WARN)   │            │
+       │            │  NÃO → processa + registra│           │
+       │            └──────────────────────────┘            │
+```
 
 ## Diagrama de Sequência — Publicação e Consumo
 

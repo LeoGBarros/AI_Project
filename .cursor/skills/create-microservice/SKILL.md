@@ -12,7 +12,7 @@ Leia as seguintes seções do [`TECHNICAL_BASE.md`](../../../TECHNICAL_BASE.md) 
 - **Seção 9** — Padrões de codificação Go
 - **Seção 8.4** — Health check obrigatório
 
-Diagrama de arquitetura de referência: [`docs/diagrams/architecture-overview.md`](../../../docs/diagrams/architecture-overview.md)
+Diagrama de arquitetura de referência: [`docs/diagrams/hexagonal-architecture-overview.md`](../../../docs/diagrams/hexagonal-architecture-overview.md)
 
 ## Informações Necessárias
 

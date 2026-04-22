@@ -26,10 +26,10 @@ Referencie os diagramas abaixo ao implementar as funcionalidades correspondentes
 
 | Diagrama | Quando usar |
 |---|---|
-| [`docs/diagrams/architecture-overview.md`](../../docs/diagrams/architecture-overview.md) | Ao entender a topologia do sistema, camadas e regra de dependência hexagonal |
-| [`docs/diagrams/auth-login-flow.md`](../../docs/diagrams/auth-login-flow.md) | Ao implementar login de usuário ou validação de JWT em endpoints |
-| [`docs/diagrams/auth-token-refresh.md`](../../docs/diagrams/auth-token-refresh.md) | Ao implementar renovação de access token via refresh token |
-| [`docs/diagrams/auth-service-to-service.md`](../../docs/diagrams/auth-service-to-service.md) | Ao implementar chamadas autenticadas entre microsserviços (Client Credentials) |
+| [`docs/diagrams/hexagonal-architecture-overview.md`](../../docs/diagrams/hexagonal-architecture-overview.md) | Ao entender a topologia do sistema, camadas e regra de dependência hexagonal |
+| [`docs/diagrams/auth-ropc-login-flow.md`](../../docs/diagrams/auth-ropc-login-flow.md) | Ao implementar login de usuário (ROPC) ou validação de JWT em endpoints |
+| [`docs/diagrams/auth-token-refresh-flow.md`](../../docs/diagrams/auth-token-refresh-flow.md) | Ao implementar renovação de access token via refresh token |
+| [`docs/diagrams/auth-client-credentials-s2s.md`](../../docs/diagrams/auth-client-credentials-s2s.md) | Ao implementar chamadas autenticadas entre microsserviços (Client Credentials) |
 | [`docs/diagrams/pubsub-event-flow.md`](../../docs/diagrams/pubsub-event-flow.md) | Ao implementar publicação ou consumo de eventos Redis Pub/Sub |
 | [`docs/diagrams/circuit-breaker-states.md`](../../docs/diagrams/circuit-breaker-states.md) | Ao implementar resiliência em chamadas a serviços externos ou bancos de dados |
 

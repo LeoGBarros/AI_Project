@@ -12,6 +12,45 @@ Threshold padrão deste projeto: **5 falhas consecutivas em 30 segundos**.
 
 ---
 
+## Diagrama ASCII — Estados e Transições
+
+```text
+                    ┌─────────────────────────────────┐
+                    │           CLOSED                 │
+                    │      (operação normal)           │
+                    │                                  │
+                    │  Sucesso → contador zerado       │
+                    │  Falha   → incrementa contador   │
+                    └──────────────┬──────────────────┘
+                                   │
+                          5 falhas em 30s
+                                   │
+                                   ▼
+                    ┌─────────────────────────────────┐
+                    │            OPEN                  │
+                    │    (circuito aberto)             │
+                    │                                  │
+                    │  Todas as requisições            │
+                    │  rejeitadas imediatamente        │
+                    └──────────────┬──────────────────┘
+                                   │
+                         timeout 60s expirado
+                                   │
+                                   ▼
+                    ┌─────────────────────────────────┐
+                    │         HALF-OPEN                │
+                    │    (teste de recuperação)        │
+                    │                                  │
+                    │  Permite UMA requisição teste    │
+                    └───────┬─────────────┬───────────┘
+                            │             │
+                   Teste OK │             │ Teste falhou
+                            │             │
+                            ▼             ▼
+                        CLOSED          OPEN
+                     (retoma normal)  (reinicia timeout)
+```
+
 ## Diagrama de Estados
 
 ```mermaid

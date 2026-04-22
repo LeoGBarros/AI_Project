@@ -85,7 +85,91 @@ Este documento estabelece as bases técnicas e os padrões que devem ser seguido
 
 O sistema é composto por microsserviços independentes, comunicando-se de forma síncrona (REST via Kong) e assíncrona (Redis Pub/Sub). O acesso externo é sempre mediado pelo API Gateway.
 
-> Diagrama de arquitetura macro: [docs/diagrams/architecture-overview.md](docs/diagrams/architecture-overview.md)
+#### Diagrama ASCII — Arquitetura Macro Simplificada
+
+```text
+┌──────────┐  ┌──────────┐  ┌──────────┐
+│  Web App │  │ Mobile   │  │ Desktop  │
+└────┬─────┘  └────┬─────┘  └────┬─────┘
+     │             │              │
+     └──────┬──────┘──────┬───────┘
+            │  HTTPS       │
+            ▼              ▼
+     ┌──────────────────────────┐
+     │      Kong API Gateway    │
+     │  (JWT, Rate Limit, SSL)  │
+     └────────────┬─────────────┘
+                  │
+        ┌─────────┼─────────┐
+        ▼         ▼         ▼
+   ┌─────────┐ ┌─────────┐ ┌─────────┐
+   │  auth   │ │  svc-A  │ │  svc-N  │
+   │ service │ │         │ │         │
+   └────┬────┘ └────┬────┘ └────┬────┘
+        │           │           │
+   ┌────┴────┐ ┌────┴────┐ ┌───┴─────┐
+   │Keycloak │ │PostgreSQL│ │ MongoDB │
+   │ + Redis │ │ + Redis  │ │ + Redis │
+   └─────────┘ └──────────┘ └─────────┘
+```
+
+#### Diagrama Mermaid — Arquitetura Macro Simplificada
+
+```mermaid
+graph TD
+    subgraph Clientes
+        WEB[Web App]
+        MOB[Mobile]
+        DESK[Desktop/CLI]
+    end
+
+    KONG[Kong API Gateway<br/>JWT · Rate Limit · SSL]
+
+    subgraph Microsserviços
+        AUTH[auth-service]
+        SVCA[svc-A]
+        SVCN[svc-N]
+    end
+
+    subgraph Dados
+        KC[Keycloak]
+        PG[PostgreSQL]
+        MONGO[MongoDB]
+        REDIS[Redis]
+    end
+
+    WEB --> KONG
+    MOB --> KONG
+    DESK --> KONG
+    KONG --> AUTH
+    KONG --> SVCA
+    KONG --> SVCN
+    AUTH --> KC
+    AUTH --> REDIS
+    SVCA --> PG
+    SVCA --> REDIS
+    SVCN --> MONGO
+    SVCN --> REDIS
+```
+
+#### Características de Microsserviços
+
+| Característica | Descrição |
+|---|---|
+| Domínio independente | Cada serviço possui um bounded context bem definido |
+| Deploy independente | Serviços são deployados e versionados de forma autônoma |
+| Banco próprio | Cada serviço gerencia seu próprio banco de dados (database-per-service) |
+| Comunicação via API | Interação síncrona via REST (Kong) e assíncrona via Redis Pub/Sub |
+| Stateless | Estado de sessão armazenado em Redis ou banco, nunca no processo |
+| Observabilidade | Logs, métricas e traces via OpenTelemetry |
+
+#### Microsserviços Existentes
+
+| Serviço | Pattern | Banco de Dados |
+|---|---|---|
+| auth-service | Hexagonal + DDD | Keycloak (IAM) + Redis (state/cache) |
+
+> Diagrama de arquitetura completo (com observabilidade): [docs/diagrams/hexagonal-architecture-overview.md](docs/diagrams/hexagonal-architecture-overview.md)
 >
 > Inclui visão completa com subgraphs por camada (clientes, gateway, serviços, dados, observabilidade) e fluxo ponta a ponta de um request.
 
@@ -105,7 +189,7 @@ Cada microsserviço segue a **Arquitetura Hexagonal (Ports & Adapters)** organiz
 
 #### Estrutura de diretórios padrão
 
-```
+```text
 service-name/
 ├── cmd/
 │   └── server/
@@ -146,6 +230,39 @@ service-name/
 └── go.mod
 ```
 
+> **Nota:** A estrutura acima é o template genérico. Cada serviço adapta os diretórios de `adapters/` conforme suas dependências reais. Por exemplo, o auth-service usa `keycloak/` e `redis/` como adapters (não `postgres/` nem `mongo/`):
+
+```text
+auth-service/
+├── cmd/server/main.go
+├── internal/
+│   ├── domain/
+│   │   ├── token.go
+│   │   └── errors.go
+│   ├── application/
+│   │   ├── login_usecase.go
+│   │   ├── authorize_usecase.go
+│   │   ├── callback_usecase.go
+│   │   ├── refresh_usecase.go
+│   │   └── logout_usecase.go
+│   ├── ports/
+│   │   ├── input/handler.go
+│   │   └── output/
+│   │       ├── keycloak.go      # Interface para Keycloak
+│   │       └── state_store.go   # Interface para state store (Redis)
+│   └── adapters/
+│       ├── http/handler.go      # Implementação HTTP (chi router)
+│       ├── keycloak/client.go   # Implementação do client Keycloak
+│       └── redis/state_store.go # Implementação do state store (Redis)
+├── pkg/
+│   ├── middleware/
+│   └── apierror/
+├── config/config.go
+├── api/openapi.yaml
+├── Dockerfile
+└── go.mod
+```
+
 #### Regra de dependência
 
 - `domain` não importa nada de fora do pacote
@@ -153,9 +270,83 @@ service-name/
 - `adapters` implementam as interfaces definidas em `ports`
 - `cmd/main.go` é o único local onde as dependências concretas são instanciadas e injetadas
 
-> Diagrama visual da regra de dependência: [docs/diagrams/architecture-overview.md — Regra de Dependência](docs/diagrams/architecture-overview.md#regra-de-dependência--arquitetura-hexagonal)
+> Diagrama visual da regra de dependência: [docs/diagrams/hexagonal-architecture-overview.md — Regra de Dependência](docs/diagrams/hexagonal-architecture-overview.md#regra-de-dependência--arquitetura-hexagonal)
 
-### 3.3 Comunicação entre Serviços
+### 3.3 Kong API Gateway
+
+O Kong é o ponto de entrada único para todos os requests externos. Nenhum cliente acessa microsserviços diretamente.
+
+#### Funcionalidades
+
+| Funcionalidade | Descrição | Plugin/Config |
+|---|---|---|
+| Roteamento | Direciona requests para microsserviços por path/host | Routes + Services |
+| Validação JWT | Verifica assinatura, exp, iss, aud do token | `jwt` ou `openid-connect` |
+| Rate Limiting | Limita requests por IP e por consumer | `rate-limiting` |
+| SSL Termination | Gerencia certificados TLS | Configuração de listener |
+| Correlation ID | Gera/propaga X-Correlation-ID | `correlation-id` |
+| Request Transform | Adiciona headers de contexto (X-Consumer-ID) | `request-transformer` |
+
+#### Fluxo de Request pelo Kong
+
+```text
+Cliente
+  │
+  │ HTTPS
+  ▼
+┌─────────────────────────────────────────────┐
+│                Kong API Gateway             │
+│                                             │
+│  1. SSL Termination                         │
+│  2. Rate Limiting (IP / Consumer)           │
+│  3. Correlation ID (gera se ausente)        │
+│  4. Validação JWT (JWKS do Keycloak)        │
+│  5. Adiciona headers (X-Consumer-ID, etc.)  │
+│  6. Roteamento para microsserviço           │
+│                                             │
+│  ✗ Sem token → HTTP 401                     │
+│  ✗ Token inválido → HTTP 401                │
+│  ✗ Rate limit → HTTP 429                    │
+└──────────────────┬──────────────────────────┘
+                   │
+                   ▼
+            Microsserviço
+```
+
+#### Fluxo de Verificação JWT no Kong
+
+```mermaid
+sequenceDiagram
+    participant C as Cliente
+    participant K as Kong
+    participant KC as Keycloak (JWKS)
+    participant S as Microsserviço
+
+    C->>K: Request + Authorization: Bearer <token>
+    K->>K: Extrair JWT do header
+    K->>KC: Buscar chave pública (JWKS) — cacheado
+    KC-->>K: Chave pública RSA
+    K->>K: Verificar assinatura
+    K->>K: Verificar exp, iss, aud
+
+    alt Token válido
+        K->>S: Forward + X-Consumer-ID + X-Consumer-Username
+        S-->>K: Response
+        K-->>C: Response
+    else Token inválido/expirado
+        K-->>C: HTTP 401 Unauthorized
+    end
+```
+
+#### Rate Limiting Padrão
+
+| Tipo | Limite | Janela |
+|---|---|---|
+| Por IP (não autenticado) | 100 requests | 1 minuto |
+| Por usuário autenticado | 1000 requests | 1 minuto |
+| Por rota sensível (ex: /login) | 10 requests | 1 minuto |
+
+### 3.4 Comunicação entre Serviços
 
 #### Síncrona (REST)
 
@@ -189,14 +380,25 @@ service-name/
 
 ## 4. Autenticação e Autorização
 
+### 4.0 Autenticação por Tipo de Cliente
+
+| Tipo de Cliente | Fluxo OAuth 2.0 | Endpoint | Descrição |
+|---|---|---|---|
+| Web (browser) | Authorization Code + PKCE | `GET /authorize` → `GET /callback` | Fluxo seguro para SPAs sem client_secret exposto |
+| Mobile (iOS/Android) | ROPC | `POST /login` | Login direto com username/password |
+| Desktop/CLI (app) | ROPC | `POST /login` | Login direto com username/password |
+| Service-to-Service | Client Credentials | Keycloak `/token` direto | Cada serviço com client_id/secret próprios |
+
+> Diagramas detalhados: [PKCE](docs/diagrams/auth-pkce-flow.md) | [ROPC](docs/diagrams/auth-ropc-login-flow.md) | [Client Credentials](docs/diagrams/auth-client-credentials-s2s.md)
+
 ### 4.1 Fluxo de Autenticação
 
 Os fluxos de autenticação são descritos em dois diagramas de sequência separados:
 
 | Diagrama | Descrição |
 |---|---|
-| [auth-login-flow.md — 4.1.a](docs/diagrams/auth-login-flow.md) | Login do usuário: obtenção do `access_token` e `refresh_token` via Keycloak |
-| [auth-login-flow.md — 4.1.b](docs/diagrams/auth-login-flow.md#41b--request-autenticado) | Request autenticado: validação JWT no Kong, verificação de roles no microsserviço |
+| [auth-ropc-login-flow.md — 4.1.a](docs/diagrams/auth-ropc-login-flow.md) | Login do usuário: obtenção do `access_token` e `refresh_token` via Keycloak |
+| [auth-ropc-login-flow.md — 4.1.b](docs/diagrams/auth-ropc-login-flow.md#41b--request-autenticado) | Request autenticado: validação JWT no Kong, verificação de roles no microsserviço |
 
 ### 4.2 Token JWT
 
@@ -240,7 +442,7 @@ Os fluxos de autenticação são descritos em dois diagramas de sequência separ
 
 Quando o `access_token` expira, o cliente utiliza o `refresh_token` para obter um novo par de tokens sem exigir novo login.
 
-> Diagrama detalhado: [docs/diagrams/auth-token-refresh.md](docs/diagrams/auth-token-refresh.md)
+> Diagrama detalhado: [docs/diagrams/auth-token-refresh-flow.md](docs/diagrams/auth-token-refresh-flow.md)
 
 ### 4.3 Autorização (RBAC)
 
@@ -257,7 +459,45 @@ Quando o `access_token` expira, o cliente utiliza o `refresh_token` para obter u
 - Tokens de service accounts têm TTL curto (máx. 5 minutos)
 - O token deve ser **cacheado localmente** pelo serviço chamador e reutilizado até próximo da expiração
 
-> Diagrama detalhado: [docs/diagrams/auth-service-to-service.md](docs/diagrams/auth-service-to-service.md)
+> Diagrama detalhado: [docs/diagrams/auth-client-credentials-s2s.md](docs/diagrams/auth-client-credentials-s2s.md)
+
+### 4.5 Validação em Duas Camadas (Kong + Microsserviço)
+
+| Validação | Onde | Obrigatória | O que verifica |
+|---|---|---|---|
+| Assinatura JWT (JWKS) | Kong | Sim | Token foi assinado pelo Keycloak |
+| Expiração (`exp`) | Kong | Sim | Token não está expirado |
+| Emissor (`iss`) | Kong | Sim | Token é do realm correto |
+| Audiência (`aud`) | Kong | Sim | Token é destinado ao serviço |
+| Roles do domínio (RBAC) | Microsserviço | Recomendada | Usuário tem role necessária para o endpoint |
+| Permissões específicas | Microsserviço | Recomendada | Scopes e permissões granulares do recurso |
+
+```text
+Request
+  │
+  ▼
+┌──────────────────────────────────┐
+│        Kong (OBRIGATÓRIA)        │
+│                                  │
+│  ✓ Assinatura JWT (JWKS)         │
+│  ✓ Expiração (exp)               │
+│  ✓ Emissor (iss)                 │
+│  ✓ Audiência (aud)               │
+│                                  │
+│  ✗ Token inválido → HTTP 401     │
+└──────────────┬───────────────────┘
+               │ Token válido
+               ▼
+┌──────────────────────────────────┐
+│  Microsserviço (OPCIONAL / RBAC) │
+│                                  │
+│  ✓ Roles do domínio              │
+│  ✓ Permissões específicas        │
+│  ✓ Scopes do recurso             │
+│                                  │
+│  ✗ Sem permissão → HTTP 403      │
+└──────────────────────────────────┘
+```
 
 ---
 
@@ -566,7 +806,7 @@ pool.Config().MaxConnIdleTime = 5 * time.Minute
 
 Formato: `{servico}:{entidade}:{id}:{campo_opcional}`
 
-```
+```text
 user-service:user:uuid-123:profile
 auth-service:session:uuid-456
 order-service:order:uuid-789:status
@@ -588,7 +828,7 @@ order-service:order:uuid-789:status
 #### Pub/Sub
 
 - Canal: `{servico}.{evento}` (ex: `user-service.user.created`)
-- Envelope de mensagem: ver seção 3.3
+- Envelope de mensagem: ver seção 3.4
 - Consumidores devem implementar idempotência usando o `event_id`
 
 ---

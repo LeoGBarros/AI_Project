@@ -8,6 +8,42 @@
 
 Diagrama completo mostrando a comunicação entre clientes, API Gateway, IAM, microsserviços, bancos de dados e observabilidade.
 
+### Diagrama ASCII — Visão Macro
+
+```text
+┌──────────┐  ┌──────────┐  ┌──────────┐
+│  Web App │  │ Mobile   │  │ Terceiros│
+└────┬─────┘  └────┬─────┘  └────┬─────┘
+     │             │              │
+     └──────┬──────┘──────┬───────┘
+            │  HTTPS       │
+            ▼              ▼
+     ┌──────────────────────────┐
+     │      Kong API Gateway    │
+     │  (JWT, Rate Limit, SSL)  │
+     └──────┬───────────────────┘
+            │
+   ┌────────┼────────────────┐
+   │        │                │
+   │   ┌────┴────┐           │
+   │   │Keycloak │           │
+   │   │  (IAM)  │           │
+   │   └─────────┘           │
+   │                         │
+   ▼         ▼               ▼
+┌─────────┐ ┌─────────┐ ┌─────────┐
+│  Svc A  │ │  Svc B  │ │  Svc N  │
+│(Hexagon)│ │(Hexagon)│ │(Hexagon)│
+└────┬────┘ └────┬────┘ └────┬────┘
+     │           │            │
+┌────┴────┐ ┌────┴────┐ ┌────┴────┐
+│PostgreSQL│ │ MongoDB │ │PostgreSQL│
+│ + Redis  │ │ + Redis │ │ + Redis  │
+└──────────┘ └─────────┘ └──────────┘
+```
+
+### Diagrama Mermaid — Visão Macro
+
 ```mermaid
 graph TD
     subgraph clients [Clientes Externos]
@@ -77,6 +113,43 @@ graph TD
 ## Regra de Dependência — Arquitetura Hexagonal
 
 As dependências fluem de fora para dentro. A camada de domínio é o núcleo e não conhece nada externo. As interfaces (Ports) definem contratos que os Adapters implementam.
+
+### Diagrama ASCII — Regra de Dependência
+
+```text
+                    Mundo Externo
+        ┌───────────────────────────────────┐
+        │  HTTP/gRPC   DB    Cache   Queue  │
+        └───────┬───────┬──────┬──────┬─────┘
+                │       │      │      │
+                ▼       ▼      ▼      ▼        Dependências
+        ┌───────────────────────────────────┐  fluem de
+        │         Adapters (concretos)      │  fora para
+        │  HTTP Handler │ Repo │ Publisher  │  dentro
+        └───────────────┬───────────────────┘      │
+                        │ implementa               │
+                        ▼                          ▼
+        ┌───────────────────────────────────┐
+        │      Ports (interfaces)           │
+        │   Input Ports  │  Output Ports    │
+        └───────────────┬───────────────────┘
+                        │
+                        ▼
+        ┌───────────────────────────────────┐
+        │     Application (Use Cases)       │
+        │   Orquestra o domínio via ports   │
+        └───────────────┬───────────────────┘
+                        │
+                        ▼
+        ┌───────────────────────────────────┐
+        │     Domain (Regras de Negócio)    │
+        │  Entidades │ Value Objects │ Erros│
+        │     *** NÃO CONHECE NADA ***     │
+        │     ***    EXTERNO       ***     │
+        └───────────────────────────────────┘
+```
+
+### Diagrama Mermaid — Regra de Dependência
 
 ```mermaid
 graph BT

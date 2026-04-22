@@ -2,7 +2,25 @@
 
 Este guia sobe a stack local do `auth-service` com `Redis` e `Keycloak` e serve como referência para validar login, refresh, logout e o fluxo `PKCE` web.
 
-## 1. Subir a stack
+## 0. Subir todo o ambiente
+
+Na raiz do repositório (é necessário ter o Docker em execução e permissão para usar o daemon):
+
+```bash
+docker compose up --build
+```
+
+Para rodar em segundo plano:
+
+```bash
+docker compose up --build -d
+```
+
+Aguarde até os três serviços estarem saudáveis. Em seguida use o **painel do Keycloak** e a **chamada de login** abaixo.
+
+---
+
+## 1. Subir a stack (referência)
 
 Na raiz do repositório:
 
@@ -26,12 +44,19 @@ O `auth-service` já expõe:
 - `POST /v1/auth/refresh`
 - `POST /v1/auth/logout`
 
-## 2. Entrar no Keycloak
+## 2. Painel do Keycloak
 
-Acesse `http://localhost:8081` e use:
+| Item | Valor |
+|------|--------|
+| **URL** | **http://localhost:8081** |
+| **Usuário** | `admin` |
+| **Senha** | `admin` |
 
-- usuário: `admin`
-- senha: `admin`
+1. Abra no navegador: **http://localhost:8081**
+2. Clique em **Administration Console**
+3. Faça login com `admin` / `admin`
+4. Crie o realm e os clients conforme as seções abaixo (se ainda não existirem)
+5. Crie um **usuário de teste** no realm `AI-Project` (Users → Add user → username/senha; em Credentials defina a senha e desmarque "Temporary") para usar na chamada de login
 
 ## 3. Criar o realm
 
@@ -39,11 +64,13 @@ Crie um realm chamado `AI-Project`.
 
 ## 4. Criar os clients
 
-Crie estes clients no realm `AI-Project`:
+Crie estes clients no realm `AI-Project` (Clients → Create client):
 
 - `web-app`
 - `mobile-app`
 - `backend-app`
+
+Para **mobile-app** e **backend-app** (usados no login ROPC): em *Capability config*, habilite **Direct access grants** (Resource Owner Password Credentials). Para **web-app**, use o fluxo Authorization Code com PKCE (não habilite Direct access grants).
 
 Regras práticas do ambiente atual:
 
@@ -86,7 +113,43 @@ Quando a stack estiver pronta, teste:
 
 Se o `ready` falhar, verifique primeiro a conectividade com `Redis`.
 
-## 7. Login
+## 7. Obter um token válido (chamada de login)
+
+Com o realm `AI-Project`, os clients (`mobile-app`, `backend-app`) e um **usuário de teste** já criados no Keycloak, use o `auth-service` para obter um token:
+
+```bash
+curl -s -X POST http://localhost:8082/v1/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{
+    "username": "SEU_USUARIO_KEYCLOAK",
+    "password": "SUA_SENHA",
+    "client_type": "mobile"
+  }'
+```
+
+Exemplo com usuário `testuser` e senha `test123`:
+
+```bash
+curl -s -X POST http://localhost:8082/v1/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"username":"testuser","password":"test123","client_type":"mobile"}'
+```
+
+Resposta esperada (200 OK):
+
+```json
+{
+  "access_token": "eyJhbGciOiJSUzI1NiIsInR5cCI...",
+  "refresh_token": "eyJhbGciOiJIUzI1NiIsInR5cCI...",
+  "token_type": "Bearer",
+  "expires_in": 300,
+  "refresh_expires_in": 1800
+}
+```
+
+Use o `access_token` no header `Authorization: Bearer <access_token>` em chamadas a APIs protegidas. Para renovar, use `POST /v1/auth/refresh` com o `refresh_token`.
+
+## 8. Login (referência Keycloak direta)
 
 O fluxo de login usa o endpoint padrão do Keycloak:
 
