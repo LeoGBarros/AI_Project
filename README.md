@@ -57,7 +57,7 @@ graph TD
     AUTH --> REDIS
 ```
 
-> Detalhes: [TECHNICAL_BASE.md](TECHNICAL_BASE.md) · [Diagrama Hexagonal](docs/diagrams/hexagonal-architecture-overview.md)
+> Detalhes: [TECHNICAL_BASE.md](TECHNICAL_BASE.md) · [Diagrama de Arquitetura](docs/diagrams/architecture-overview.md)
 
 ---
 
@@ -156,16 +156,16 @@ Aguarde até os serviços estarem saudáveis. Portas expostas:
 │   ├── auth-service-history-*.md      # Histórico de decisões
 │   └── diagrams/                      # Diagramas Mermaid + ASCII
 │       ├── README.md                  # Índice de diagramas
-│       ├── hexagonal-architecture-overview.md
+│       ├── architecture-overview.md
 │       ├── auth-pkce-flow.md
 │       ├── auth-ropc-login-flow.md
 │       ├── auth-token-refresh-flow.md
 │       ├── auth-client-credentials-s2s.md
 │       ├── circuit-breaker-states.md
 │       └── pubsub-event-flow.md
-└── .cursor/
-    ├── rules/                         # Regras para agentes de IA
-    └── skills/                        # Skills para agentes de IA
+└── .kiro/
+    ├── steering/                      # Regras automáticas para o Kiro
+    └── skills/                        # Skills para o Kiro
 ```
 
 ---
@@ -177,4 +177,4 @@ Aguarde até os serviços estarem saudáveis. Portas expostas:
 | Base Técnica | Referência central de arquitetura, padrões e convenções | [TECHNICAL_BASE.md](TECHNICAL_BASE.md) |
 | Diagramas | Índice de diagramas de arquitetura e fluxos | [docs/diagrams/](docs/diagrams/) |
 | Dev Local | Guia para subir o ambiente de desenvolvimento | [docs/auth-service-local-dev.md](docs/auth-service-local-dev.md) |
-| Skills de IA | Guia de skills e rules para agentes de IA (Cursor) | [docs/ai-skills-guide.md](docs/ai-skills-guide.md) |
+| Skills de IA | Guia de skills e steering para o Kiro | [docs/ai-skills-guide.md](docs/ai-skills-guide.md) |

@@ -8,7 +8,7 @@ Este diretório contém todos os diagramas de fluxo e sequência do projeto, org
 
 | Arquivo | Pattern | Descrição |
 |---|---|---|
-| [hexagonal-architecture-overview.md](hexagonal-architecture-overview.md) | Hexagonal Architecture | Visão macro do sistema, regra de dependência hexagonal e fluxo ponta a ponta de um request |
+| [architecture-overview.md](architecture-overview.md) | Arquitetura do Sistema | Visão macro do sistema e estrutura interna dos microsserviços |
 
 ## Autenticação e Autorização
 

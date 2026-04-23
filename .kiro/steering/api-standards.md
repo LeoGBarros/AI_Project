@@ -1,7 +1,6 @@
 ---
-description: Padrões de API REST — convenções de URL, métodos HTTP, envelopes de resposta, headers e observabilidade em handlers.
-globs: "**/handler*.go,**/openapi.yaml,**/openapi.yml"
-alwaysApply: false
+inclusion: fileMatch
+fileMatchPattern: "**/handler*.go,**/openapi.yaml,**/openapi.yml"
 ---
 
 # Padrões de API REST
@@ -54,19 +53,12 @@ Referência completa: [`TECHNICAL_BASE.md` — seção 5](../../TECHNICAL_BASE.m
     "code": "VALIDATION_ERROR",
     "message": "O campo 'email' é obrigatório.",
     "details": [
-      {
-        "field": "email",
-        "message": "campo obrigatório"
-      }
+      { "field": "email", "message": "campo obrigatório" }
     ],
     "trace_id": "abc123def456"
   }
 }
 ```
-
-- O `trace_id` deve ser o span ID do OpenTelemetry do request
-- Nunca expor stack traces ou mensagens internas em produção
-- O campo `code` deve ser um enum documentado no OpenAPI
 
 ### Lista paginada
 
@@ -82,15 +74,6 @@ Referência completa: [`TECHNICAL_BASE.md` — seção 5](../../TECHNICAL_BASE.m
 }
 ```
 
-## Parâmetros de Paginação
-
-| Parâmetro | Tipo | Padrão | Máximo |
-|---|---|---|---|
-| `page` | int | 1 | — |
-| `page_size` | int | 20 | 100 |
-| `sort_by` | string | — | — |
-| `sort_order` | string (`asc`/`desc`) | `asc` | — |
-
 ## Headers Obrigatórios
 
 | Header | Direção | Descrição |
@@ -100,56 +83,7 @@ Referência completa: [`TECHNICAL_BASE.md` — seção 5](../../TECHNICAL_BASE.m
 | `X-Request-ID` | Request | UUID v4 gerado pelo cliente ou Kong |
 | `X-Correlation-ID` | Request/Response | ID de correlação para rastreamento distribuído |
 
-- O `X-Correlation-ID` deve ser propagado em todos os logs e spans do fluxo
-- Em chamadas HTTP inter-serviço, inclua `X-Correlation-ID` no request de saída
-
-## Versionamento
-
-- Versão maior no path: `/v1/`, `/v2/`
-- Versões anteriores mantidas por mínimo 6 meses após release da próxima
-- Breaking changes sempre implicam nova versão maior
-- Mudanças retrocompatíveis (campos opcionais, novos endpoints) não exigem nova versão
-
-## Contrato OpenAPI
-
-- Todo serviço mantém `api/openapi.yaml` na raiz do repositório
-- OpenAPI 3.0+
-- Incluir exemplos de request e response para cada endpoint
-- Definir todos os `code` de erro como enum no schema
-- Validado em CI/CD
-
-## Observabilidade em Handlers
-
-Todo handler HTTP deve criar um span OpenTelemetry e incluir atributos:
-
-```go
-ctx, span := tracer.Start(r.Context(), "handler.CreateUser")
-defer span.End()
-
-span.SetAttributes(
-    attribute.String("http.method", r.Method),
-    attribute.String("http.route", "/v1/users"),
-)
-```
-
-Logar início e fim do request com os campos obrigatórios:
-
-```json
-{
-  "http.method": "POST",
-  "http.path": "/v1/users",
-  "http.status_code": 201,
-  "http.duration_ms": 42,
-  "http.request_id": "uuid",
-  "correlation_id": "uuid",
-  "trace_id": "abc123",
-  "span_id": "def456"
-}
-```
-
 ## Health Check (Obrigatório por Serviço)
-
-Expor sem autenticação e sem roteamento pelo Kong:
 
 | Endpoint | Comportamento |
 |---|---|

@@ -169,9 +169,7 @@ graph TD
 |---|---|---|
 | auth-service | Hexagonal + DDD | Keycloak (IAM) + Redis (state/cache) |
 
-> Diagrama de arquitetura completo (com observabilidade): [docs/diagrams/hexagonal-architecture-overview.md](docs/diagrams/hexagonal-architecture-overview.md)
->
-> Inclui visão completa com subgraphs por camada (clientes, gateway, serviços, dados, observabilidade) e fluxo ponta a ponta de um request.
+> Diagrama de arquitetura: [docs/diagrams/architecture-overview.md](docs/diagrams/architecture-overview.md)
 
 ### 3.2 Padrão Arquitetural por Serviço: Hexagonal + DDD
 
@@ -270,7 +268,7 @@ auth-service/
 - `adapters` implementam as interfaces definidas em `ports`
 - `cmd/main.go` é o único local onde as dependências concretas são instanciadas e injetadas
 
-> Diagrama visual da regra de dependência: [docs/diagrams/hexagonal-architecture-overview.md — Regra de Dependência](docs/diagrams/hexagonal-architecture-overview.md#regra-de-dependência--arquitetura-hexagonal)
+> Diagrama visual da estrutura interna: [docs/diagrams/architecture-overview.md — Estrutura Interna](docs/diagrams/architecture-overview.md#estrutura-interna-do-microsserviço)
 
 ### 3.3 Kong API Gateway
 
