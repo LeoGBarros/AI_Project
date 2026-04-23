@@ -19,17 +19,17 @@ Backend de microsserviços em Go com autenticação centralizada via Keycloak, r
      │  (JWT, Rate Limit, SSL)  │
      └────────────┬─────────────┘
                   │
-        ┌─────────┼─────────┐
-        ▼         ▼         ▼
-   ┌─────────┐ ┌─────────┐ ┌─────────┐
-   │  auth   │ │  svc-A  │ │  svc-N  │
-   │ service │ │         │ │         │
-   └────┬────┘ └────┬────┘ └────┬────┘
-        │           │           │
-   ┌────┴────┐ ┌────┴────┐ ┌───┴─────┐
-   │Keycloak │ │PostgreSQL│ │ MongoDB │
-   │ + Redis │ │ + Redis  │ │ + Redis │
-   └─────────┘ └──────────┘ └─────────┘
+                  ▼
+            ┌─────────┐
+            │  auth   │
+            │ service │
+            └────┬────┘
+                 │
+           ┌─────┴─────┐
+           ▼           ▼
+      ┌─────────┐ ┌─────────┐
+      │Keycloak │ │  Redis  │
+      └─────────┘ └─────────┘
 ```
 
 ```mermaid
@@ -42,16 +42,10 @@ graph TD
 
     KONG[Kong API Gateway<br/>JWT · Rate Limit · SSL]
 
-    subgraph Microsserviços
-        AUTH[auth-service]
-        SVCA[svc-A]
-        SVCN[svc-N]
-    end
+    AUTH[auth-service]
 
     subgraph Dados
         KC[Keycloak]
-        PG[PostgreSQL]
-        MONGO[MongoDB]
         REDIS[Redis]
     end
 
@@ -59,12 +53,8 @@ graph TD
     MOB --> KONG
     DSK --> KONG
     KONG --> AUTH
-    KONG --> SVCA
-    KONG --> SVCN
     AUTH --> KC
     AUTH --> REDIS
-    SVCA --> PG
-    SVCN --> MONGO
 ```
 
 > Detalhes: [TECHNICAL_BASE.md](TECHNICAL_BASE.md) · [Diagrama Hexagonal](docs/diagrams/hexagonal-architecture-overview.md)
@@ -117,8 +107,6 @@ Aguarde até os serviços estarem saudáveis. Portas expostas:
 | API Gateway | Kong | Roteamento, JWT, rate limiting, SSL termination |
 | IAM | Keycloak 24.x | Emissão de tokens JWT, gerenciamento de usuários, RBAC |
 | Cache / State | Redis 7 | Armazenamento de estado (PKCE), cache, Pub/Sub |
-| Banco Relacional | PostgreSQL | Persistência de dados dos microsserviços |
-| Banco Documental | MongoDB | Persistência de dados não-relacionais |
 | Containerização | Docker + Compose | Build, deploy e orquestração local |
 | Observabilidade | OpenTelemetry | Logs, métricas e traces distribuídos |
 
@@ -131,8 +119,6 @@ Aguarde até os serviços estarem saudáveis. Portas expostas:
 | Serviço | Descrição | Stack | Status |
 |---|---|---|---|
 | `auth-service` | Autenticação OAuth 2.0 (PKCE, ROPC, Client Credentials) | Go · Keycloak · Redis | ✅ Implementado |
-| `svc-A` | (Planejado) | Go · PostgreSQL | 🔲 Planejado |
-| `svc-N` | (Planejado) | Go · MongoDB | 🔲 Planejado |
 
 ---
 
