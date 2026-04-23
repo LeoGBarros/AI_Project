@@ -15,7 +15,7 @@
   - Usar mocks para `UserProfileRepository`
   - _Requisitos: 1.1, 1.2, 1.3, 4.3_
 
-- [~] 4.4 Implementar `user-service/internal/application/update_profile_usecase.go`
+- [x] 4.4 Implementar `user-service/internal/application/update_profile_usecase.go`
   - Receber `UserProfileRepository`, `EventPublisher` e `*zap.Logger` via construtor
   - Validar campos via `domain.UpdateProfileInput.Validate()`
   - Atualizar perfil no repositório; publicar evento `user.updated`; se publicação falhar, logar erro sem reverter
