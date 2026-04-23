@@ -1,0 +1,13 @@
+{
+  "enabled": true,
+  "name": "Review pós-tarefa",
+  "description": "Após completar uma tarefa de spec, faz review automático do código gerado buscando falhas de segurança (exposição de secrets, SQL injection, falta de validação), falhas de arquitetura (violação de camadas, imports incorretos) e aderência aos padrões do TECHNICAL_BASE.md.",
+  "version": "1",
+  "when": {
+    "type": "postTaskExecution"
+  },
+  "then": {
+    "type": "askAgent",
+    "prompt": "Faça um review completo do código que acabou de ser gerado/modificado. Verifique:\n\n1. SEGURANÇA: Exposição de secrets, SQL injection, falta de validação de input, stack traces expostos, endpoints sem autenticação\n2. ARQUITETURA: Violação da regra de dependência (domain não pode importar nada externo), imports entre camadas incorretos, lógica de negócio fora do domain/application\n3. PADRÕES: Aderência ao TECHNICAL_BASE.md — error handling com errors.Is, DI manual, context.Context como primeiro parâmetro, logs estruturados com zap\n4. TESTES: Cobertura dos use cases, mocks para interfaces\n\nListe os problemas encontrados com severidade (CRÍTICO / ALERTA / SUGESTÃO) e sugira correções."
+  }
+}

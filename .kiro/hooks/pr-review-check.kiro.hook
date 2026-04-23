@@ -1,0 +1,13 @@
+{
+  "enabled": true,
+  "name": "Review de PR",
+  "description": "Review completo do diff do PR antes de enviar para review humano. Analisa segurança, arquitetura, padrões e sugere melhorias. Acionado manualmente pelo desenvolvedor.",
+  "version": "1",
+  "when": {
+    "type": "userTriggered"
+  },
+  "then": {
+    "type": "askAgent",
+    "prompt": "Faça um review completo do git diff atual (use `git diff main` ou `git diff HEAD~N` conforme necessário). Analise como se fosse um reviewer de PR:\n\n1. SEGURANÇA:\n   - Secrets hardcoded ou expostos?\n   - Inputs não validados?\n   - Endpoints sem autenticação JWT?\n   - Stack traces ou mensagens internas expostas em respostas de erro?\n\n2. ARQUITETURA:\n   - Regra de dependência respeitada? (domain ← application ← adapters)\n   - Lógica de negócio está no domain/application, não nos adapters?\n   - Interfaces definidas onde são usadas (ports), não onde são implementadas?\n\n3. PADRÕES (TECHNICAL_BASE.md):\n   - Error handling com errors.Is/errors.As e wrapping com %w?\n   - DI manual via construtores?\n   - context.Context como primeiro parâmetro?\n   - Logs estruturados com zap?\n   - Health checks implementados?\n\n4. TESTES:\n   - Use cases têm testes unitários?\n   - Mocks para interfaces de ports?\n   - Cobertura adequada?\n\nDê um veredito final: APROVADO, APROVADO COM RESSALVAS, ou MUDANÇAS NECESSÁRIAS.\nListe cada item encontrado com severidade (CRÍTICO / ALERTA / SUGESTÃO)."
+  }
+}

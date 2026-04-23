@@ -178,3 +178,4 @@ Aguarde até os serviços estarem saudáveis. Portas expostas:
 | Diagramas | Índice de diagramas de arquitetura e fluxos | [docs/diagrams/](docs/diagrams/) |
 | Dev Local | Guia para subir o ambiente de desenvolvimento | [docs/auth-service-local-dev.md](docs/auth-service-local-dev.md) |
 | Skills de IA | Guia de skills e steering para o Kiro | [docs/ai-skills-guide.md](docs/ai-skills-guide.md) |
+| Hooks de IA | Guia de hooks de review e validação automática | [docs/kiro-hooks-guide.md](docs/kiro-hooks-guide.md) |

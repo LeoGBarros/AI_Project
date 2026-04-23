@@ -1,0 +1,16 @@
+{
+  "enabled": true,
+  "name": "Verificação pré-escrita",
+  "description": "Antes de qualquer operação de escrita em arquivo, verifica se o código segue os padrões do projeto: regra de dependência entre camadas, nomenclatura, error handling e convenções Go.",
+  "version": "1",
+  "when": {
+    "type": "preToolUse",
+    "toolTypes": [
+      "write"
+    ]
+  },
+  "then": {
+    "type": "askAgent",
+    "prompt": "Antes de escrever este arquivo, verifique rapidamente:\n- O código respeita a regra de dependência entre camadas? (domain ← application ← adapters)\n- Error handling usa errors.Is/errors.As e fmt.Errorf com %w?\n- context.Context é o primeiro parâmetro em funções de I/O?\n- Não há variáveis globais de dependência?\n\nSe encontrar problemas, corrija antes de escrever. Se estiver tudo ok, prossiga."
+  }
+}

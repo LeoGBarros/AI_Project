@@ -1,0 +1,34 @@
+# Kiro specs (local/pessoal, não versionado)
+.kiro/specs/
+
+# IDE e editores
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Go
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+vendor/
+
+# Docker
+.env
+*.env.local
+
+# Logs
+*.log
+
+# Binários de build
+/bin/
+/dist/
