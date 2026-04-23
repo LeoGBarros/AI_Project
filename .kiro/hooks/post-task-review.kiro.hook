@@ -1,13 +1,13 @@
 {
   "enabled": true,
-  "name": "Review pós-tarefa",
-  "description": "Após completar uma tarefa de spec, faz review automático do código gerado buscando falhas de segurança (exposição de secrets, SQL injection, falta de validação), falhas de arquitetura (violação de camadas, imports incorretos) e aderência aos padrões do TECHNICAL_BASE.md.",
-  "version": "1",
+  "name": "Review pós-tarefa com verificação de conformidade",
+  "description": "Após completar uma tarefa de spec, faz review automático do código gerado verificando segurança, arquitetura, aderência ao TECHNICAL_BASE.md E conformidade com o design doc e requisitos referenciados na tarefa.",
+  "version": "2",
   "when": {
     "type": "postTaskExecution"
   },
   "then": {
     "type": "askAgent",
-    "prompt": "Faça um review completo do código que acabou de ser gerado/modificado. Verifique:\n\n1. SEGURANÇA: Exposição de secrets, SQL injection, falta de validação de input, stack traces expostos, endpoints sem autenticação\n2. ARQUITETURA: Violação da regra de dependência (domain não pode importar nada externo), imports entre camadas incorretos, lógica de negócio fora do domain/application\n3. PADRÕES: Aderência ao TECHNICAL_BASE.md — error handling com errors.Is, DI manual, context.Context como primeiro parâmetro, logs estruturados com zap\n4. TESTES: Cobertura dos use cases, mocks para interfaces\n\nListe os problemas encontrados com severidade (CRÍTICO / ALERTA / SUGESTÃO) e sugira correções."
+    "prompt": "Faça um review completo do código que acabou de ser gerado/modificado. Verifique os seguintes aspectos:\n\n1. CONFORMIDADE COM A SPEC:\n   - Leia o design doc (.kiro/specs/user-service/design.md) e compare structs, assinaturas de métodos e fluxos implementados com o que foi especificado\n   - Verifique se os requisitos referenciados na tarefa (requirements.md) foram atendidos — especialmente detalhes como propagação de dados entre camadas\n   - Se houver divergência entre o código e o design doc, reporte como ALERTA e justifique se a divergência é uma melhoria ou um erro\n\n2. SEGURANÇA:\n   - Exposição de secrets, SQL injection, falta de validação de input, stack traces expostos, endpoints sem autenticação\n\n3. ARQUITETURA:\n   - Violação da regra de dependência (domain não pode importar nada externo), imports entre camadas incorretos, lógica de negócio fora do domain/application\n\n4. PADRÕES (TECHNICAL_BASE.md):\n   - Error handling com errors.Is/errors.As e fmt.Errorf com %w\n   - DI manual via construtores\n   - context.Context como primeiro parâmetro em funções de I/O\n   - Logs estruturados com zap\n   - Spans OpenTelemetry nos use cases e adapters (conforme seção 6.5 do TECHNICAL_BASE.md)\n   - Detalhes de validação propagados para que o handler HTTP possa incluí-los no envelope de erro (conforme seção 5.3 do TECHNICAL_BASE.md)\n\n5. TESTES:\n   - Cobertura dos use cases, mocks para interfaces de ports\n\nListe os problemas encontrados com severidade (CRÍTICO / ALERTA / SUGESTÃO) e sugira correções."
   }
 }
