@@ -1,0 +1,341 @@
+openapi: "3.0.3"
+info:
+  title: user-service API
+  description: |
+    User profile management service. Manages the authenticated user's profile data
+    (display name, email, phone, avatar). Operates behind Kong API Gateway, which
+    validates JWT tokens before forwarding requests. Profile data is persisted in
+    PostgreSQL and domain events are published via Redis Pub/Sub.
+  version: "1.0.0"
+  contact:
+    name: Platform Team
+
+servers:
+  - url: /v1/users
+    description: User service base path (routed via Kong). Health check endpoints (/healthz/*) are registered at the root level, outside this base path.
+
+tags:
+  - name: Profile
+    description: User profile query and update operations
+  - name: Health
+    description: Liveness and readiness probes
+
+security:
+  - BearerAuth: []
+
+paths:
+  /me:
+    get:
+      summary: Get authenticated user's profile
+      description: |
+        Returns the profile of the authenticated user identified by the `sub` claim in the JWT.
+        If the profile does not exist, it is automatically created using claims from the JWT
+        (`sub`, `preferred_username`, `email`).
+      operationId: getProfile
+      tags: [Profile]
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: User profile returned successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserProfile"
+              example:
+                id: "550e8400-e29b-41d4-a716-446655440000"
+                display_name: "Jane Doe"
+                email: "jane.doe@example.com"
+                phone: "+5511999990000"
+                avatar_url: "https://cdn.example.com/avatars/jane.png"
+                created_at: "2026-03-05T10:00:00Z"
+                updated_at: "2026-03-05T12:30:00Z"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+    put:
+      summary: Update authenticated user's profile
+      description: |
+        Updates the profile of the authenticated user. All fields in the request body are optional;
+        only provided fields are updated. The `updated_at` timestamp is set to the current time
+        on successful update. A `user.updated` domain event is published via Redis Pub/Sub.
+      operationId: updateProfile
+      tags: [Profile]
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateProfileRequest"
+            examples:
+              fullUpdate:
+                summary: Update all fields
+                value:
+                  display_name: "Jane Updated"
+                  email: "jane.new@example.com"
+                  phone: "+5511888880000"
+                  avatar_url: "https://cdn.example.com/avatars/jane-v2.png"
+              partialUpdate:
+                summary: Update only display name
+                value:
+                  display_name: "Jane Renamed"
+      responses:
+        "200":
+          description: Profile updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserProfile"
+              example:
+                id: "550e8400-e29b-41d4-a716-446655440000"
+                display_name: "Jane Updated"
+                email: "jane.new@example.com"
+                phone: "+5511888880000"
+                avatar_url: "https://cdn.example.com/avatars/jane-v2.png"
+                created_at: "2026-03-05T10:00:00Z"
+                updated_at: "2026-03-05T14:00:00Z"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /healthz/live:
+    get:
+      summary: Liveness probe
+      description: |
+        Returns 200 if the process is alive. Not routed through Kong — no authentication required.
+        Note: This endpoint is registered at the root level (`/healthz/live`), not under the `/v1/users` base path.
+      operationId: liveness
+      tags: [Health]
+      security: []
+      responses:
+        "200":
+          description: Service is alive
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthResponse"
+              example:
+                status: "ok"
+
+  /healthz/ready:
+    get:
+      summary: Readiness probe
+      description: |
+        Returns 200 if the service is ready to receive traffic (PostgreSQL and Redis reachable).
+        Returns 503 if any dependency is unavailable. Not routed through Kong — no authentication required.
+        Note: This endpoint is registered at the root level (`/healthz/ready`), not under the `/v1/users` base path.
+      operationId: readiness
+      tags: [Health]
+      security: []
+      responses:
+        "200":
+          description: Service is ready
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthResponse"
+              example:
+                status: "ok"
+        "503":
+          description: Service is not ready (dependency unavailable)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthResponse"
+              example:
+                status: "degraded"
+                reason: "postgresql unavailable"
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: |
+        JWT token issued by Keycloak and validated by Kong API Gateway.
+        The token must contain a `sub` claim identifying the user.
+
+  schemas:
+    UserProfile:
+      type: object
+      required: [id, display_name, email, created_at, updated_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: User ID (from JWT `sub` claim).
+          example: "550e8400-e29b-41d4-a716-446655440000"
+        display_name:
+          type: string
+          maxLength: 255
+          description: User's display name.
+          example: "Jane Doe"
+        email:
+          type: string
+          format: email
+          maxLength: 255
+          description: User's contact email.
+          example: "jane.doe@example.com"
+        phone:
+          type: string
+          maxLength: 50
+          nullable: true
+          description: User's phone number.
+          example: "+5511999990000"
+        avatar_url:
+          type: string
+          format: uri
+          nullable: true
+          description: URL of the user's avatar image.
+          example: "https://cdn.example.com/avatars/jane.png"
+        created_at:
+          type: string
+          format: date-time
+          description: Timestamp of profile creation (ISO 8601).
+          example: "2026-03-05T10:00:00Z"
+        updated_at:
+          type: string
+          format: date-time
+          description: Timestamp of last profile update (ISO 8601).
+          example: "2026-03-05T12:30:00Z"
+
+    UpdateProfileRequest:
+      type: object
+      description: |
+        Fields to update on the user profile. All fields are optional — only provided
+        fields are updated. Omitted fields remain unchanged.
+      properties:
+        display_name:
+          type: string
+          maxLength: 255
+          description: New display name. Cannot be empty if provided.
+          example: "Jane Updated"
+        email:
+          type: string
+          format: email
+          maxLength: 255
+          description: New contact email. Must be a valid email format.
+          example: "jane.new@example.com"
+        phone:
+          type: string
+          maxLength: 50
+          description: New phone number. Must be a valid phone format.
+          example: "+5511888880000"
+        avatar_url:
+          type: string
+          format: uri
+          description: New avatar URL. Must be a valid URL format.
+          example: "https://cdn.example.com/avatars/jane-v2.png"
+
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: object
+          required: [code, message, trace_id]
+          properties:
+            code:
+              type: string
+              description: Machine-readable error code.
+              example: "VALIDATION_ERROR"
+            message:
+              type: string
+              description: Human-readable error description.
+              example: "one or more fields are invalid"
+            details:
+              type: array
+              description: Per-field validation errors (present only for VALIDATION_ERROR).
+              items:
+                type: object
+                properties:
+                  field:
+                    type: string
+                    description: Name of the invalid field.
+                  message:
+                    type: string
+                    description: Reason the field is invalid.
+              example:
+                - field: "email"
+                  message: "invalid email format"
+                - field: "display_name"
+                  message: "cannot be empty"
+            trace_id:
+              type: string
+              description: OpenTelemetry trace ID for request correlation.
+              example: "4bf92f3577b34da6a3ce929d0e0e4736"
+
+    HealthResponse:
+      type: object
+      required: [status]
+      properties:
+        status:
+          type: string
+          enum: [ok, degraded]
+          description: Service health status.
+          example: "ok"
+        reason:
+          type: string
+          description: Reason for degraded status (present only when status is "degraded").
+          example: "postgresql unavailable"
+
+  responses:
+    BadRequest:
+      description: Request validation failed
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          example:
+            error:
+              code: "VALIDATION_ERROR"
+              message: "one or more fields are invalid"
+              details:
+                - field: "email"
+                  message: "invalid email format"
+              trace_id: "4bf92f3577b34da6a3ce929d0e0e4736"
+
+    Unauthorized:
+      description: Authentication failed — missing or invalid JWT
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          example:
+            error:
+              code: "INVALID_TOKEN"
+              message: "missing or empty sub claim"
+              trace_id: "4bf92f3577b34da6a3ce929d0e0e4736"
+
+    NotFound:
+      description: User profile not found
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          example:
+            error:
+              code: "USER_NOT_FOUND"
+              message: "user profile not found"
+              trace_id: "4bf92f3577b34da6a3ce929d0e0e4736"
+
+    InternalError:
+      description: Unexpected internal error
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          example:
+            error:
+              code: "INTERNAL_ERROR"
+              message: "an internal error occurred"
+              trace_id: "4bf92f3577b34da6a3ce929d0e0e4736"
